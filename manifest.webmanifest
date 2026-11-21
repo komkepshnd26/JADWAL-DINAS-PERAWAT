@@ -1,0 +1,21 @@
+{
+  "name": "Jadwal Dinas Perawat",
+  "short_name": "Jadwal Dinas",
+  "description": "Susun jadwal dinas perawat Rawat Inap dan Poliklinik per bulan, lengkap dengan poin dan pemeriksaan aturan.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "id",
+  "dir": "ltr",
+  "background_color": "#edf2f3",
+  "theme_color": "#0e6b70",
+  "categories": ["medical", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
