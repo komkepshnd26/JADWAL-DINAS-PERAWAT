@@ -33,6 +33,7 @@ img{max-width:100%}
   --M-bg:#cdd3fb; --M-fg:#1d2874;
   --L-bg:#e3e9eb; --L-fg:#4f6168;
   --CT-bg:#cdebd0; --CT-fg:#1b5a29;
+  --DC-bg:#cfeaf2; --DC-fg:#0b4a5c;
   --PS-bg:#f6cfe2; --PS-fg:#6a1640;
   --font-display:'Bricolage Grotesque',system-ui,sans-serif;
   --font-body:'IBM Plex Sans',system-ui,sans-serif;
@@ -47,6 +48,7 @@ img{max-width:100%}
     --M-bg:#2d3472; --M-fg:#cfd5ff;
     --L-bg:#26363c; --L-fg:#9db2b9;
     --CT-bg:#1f4a2b; --CT-fg:#aee4b8;
+    --DC-bg:#173f4d; --DC-fg:#a8e0f0;
     --PS-bg:#5a2243; --PS-fg:#ffc8e2;
     color-scheme:dark;
   }
@@ -59,6 +61,7 @@ img{max-width:100%}
   --M-bg:#2d3472; --M-fg:#cfd5ff;
   --L-bg:#26363c; --L-fg:#9db2b9;
   --CT-bg:#1f4a2b; --CT-fg:#aee4b8;
+  --DC-bg:#173f4d; --DC-fg:#a8e0f0;
   --PS-bg:#5a2243; --PS-fg:#ffc8e2;
   color-scheme:dark;
 }
@@ -108,7 +111,7 @@ button{cursor:pointer}
 .chip[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
 .s-P{background:var(--P-bg);color:var(--P-fg)} .s-S{background:var(--S-bg);color:var(--S-fg)} .s-M{background:var(--M-bg);color:var(--M-fg)}
 .s-PS{background:var(--PS-bg);color:var(--PS-fg)}
-.s-L{background:var(--L-bg);color:var(--L-fg)} .s-CT{background:var(--CT-bg);color:var(--CT-fg)}
+.s-L{background:var(--L-bg);color:var(--L-fg)} .s-CT{background:var(--CT-bg);color:var(--CT-fg)} .s-DC{background:var(--DC-bg);color:var(--DC-fg)}
 .s-x{background:transparent;color:var(--muted);border:1px dashed var(--line)}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 .status{min-height:20px;font-size:13px;color:var(--muted)}
@@ -230,11 +233,11 @@ tfoot tr:first-child > *{border-top:2px solid var(--line)}
     <div class="brushwrap">
       <div class="hint">Pilih jenis dinas, lalu klik sel di jadwal. Klik sel yang sama sekali lagi untuk menghapus.</div>
       <div class="brush" id="brush" role="group" aria-label="Jenis dinas"></div>
-      <label class="adj"><input type="checkbox" id="autoadj" checked> Perawat sakit atau izin: ubah sel ke Libur atau CT, jadwal lain menyesuaikan otomatis</label>
+      <label class="adj"><input type="checkbox" id="autoadj" checked> Perawat sakit (DC) atau izin: ubah sel ke DC, CT, atau Libur, jadwal lain menyesuaikan otomatis</label>
     </div>
     <div class="actions">
       <button class="btn primary" data-act="fill">Isi sel kosong otomatis</button>
-      <button class="btn" data-act="regen" data-confirm="Yakin? Klik lagi">Susun ulang (cuti tetap)</button>
+      <button class="btn" data-act="regen" data-confirm="Yakin? Klik lagi">Susun ulang (cuti dan sakit tetap)</button>
       <button class="btn" data-act="clear" data-confirm="Yakin? Klik lagi">Kosongkan</button>
       <button class="btn" data-act="copy">Salin ke Excel</button>
     </div>
@@ -284,15 +287,15 @@ tfoot tr:first-child > *{border-top:2px solid var(--line)}
 
 <script>
 /*LOGIC-START*/
-const POINTS = {P:1, S:1, PS:2, M:2, CT:1, L:0};
-const LABELS = {P:'Pagi', S:'Sore', PS:'Pagi + Sore', M:'Malam', L:'Libur', CT:'Cuti'};
+const POINTS = {P:1, S:1, PS:2, M:2, CT:1, DC:0, L:0};
+const LABELS = {P:'Pagi', S:'Sore', PS:'Pagi + Sore', M:'Malam', L:'Libur', CT:'Cuti', DC:'Sakit'};
 const UNITS = {
-  inap:{ name:'Rawat Inap', cover:['P','S','M'], codes:['P','S','PS','M','L','CT'],
+  inap:{ name:'Rawat Inap', cover:['P','S','M'], codes:['P','S','PS','M','L','CT','DC'],
     time:{P:'07.30–13.30', S:'13.30–19.30', PS:'07.30–19.30', M:'19.30–07.30'},
-    hours:{P:6, S:6, PS:12, M:12, L:0, CT:0}, maxRun:6, workRatio:0.75, cycle:true },
-  poli:{ name:'Poliklinik', cover:['P','S'], codes:['P','S','PS','L','CT'],
+    hours:{P:6, S:6, PS:12, M:12, L:0, CT:0, DC:0}, maxRun:6, workRatio:0.75, cycle:true },
+  poli:{ name:'Poliklinik', cover:['P','S'], codes:['P','S','PS','L','CT','DC'],
     time:{P:'09.00–15.00', S:'15.00–22.00', PS:'09.00–22.00'},
-    hours:{P:6, S:7, PS:13, M:0, L:0, CT:0}, maxRun:6, workRatio:6/7, cycle:false }
+    hours:{P:6, S:7, PS:13, M:0, L:0, CT:0, DC:0}, maxRun:6, workRatio:6/7, cycle:false }
 };
 const MAX_RUN = 6, MAX_NIGHT = 3;
 // Periode jadwal: START = tanggal mulai (1 = bulan kalender, 21 = tgl 21 sampai tgl 20 bulan berikutnya).
@@ -327,7 +330,7 @@ function analyze(rows, n, y, m, need, cfg){
   let filled = 0;
   rows.forEach(r=>{
     const c = r.cells, v = new Set(); viol[r.id] = v;
-    const st = {P:0,S:0,M:0,PS:0,L:0,CT:0,hours:0,points:0};
+    const st = {P:0,S:0,M:0,PS:0,L:0,CT:0,DC:0,hours:0,points:0};
     for(let i=0;i<n;i++){
       const x=c[i];
       if(x){ filled++; st[x]++; st.hours += cfg.hours[x]||0; st.points += POINTS[x]||0; }
@@ -386,7 +389,7 @@ function cycleNext(cells,d){
     case 'S': return k<2 ? 'S' : 'M';
     case 'M': return k<2 ? 'M' : 'L';
     case 'L': return k<2 ? 'L' : 'P';
-    case 'CT': return 'P';
+    case 'CT': case 'DC': return 'P';
     default: return 'L'; // setelah PS: istirahat
   }
 }
@@ -560,7 +563,7 @@ function autoFill(rows, n, y, m, need, cfg, startDay){
   return rows;
 }
 
-// Perawat sakit atau izin (sel diubah ke Libur/CT): perbaiki kekurangan mulai hari 'from'
+// Perawat sakit atau izin (sel diubah ke Libur/CT/DC): perbaiki kekurangan mulai hari 'from'
 // seminimal mungkin. Hanya sel otomatis (tidak dikunci) yang boleh diubah.
 function repair(rows, n, y, m, need, cfg, from){
   const R = cfg.maxRun, changes = [];
@@ -679,7 +682,7 @@ function rowsFor(y,m){
   const n=daysIn(y,m), key=ym(y,m), sc=U().sched[key]||{}, lk=(U().lock&&U().lock[key])||{};
   return U().nurses.map(nu=>{
     const a=(sc[nu.id]||[]).slice(0,n); while(a.length<n) a.push('');
-    let l=lk[nu.id]; l = l ? l.slice(0,n) : a.map(c=>c==='CT'?1:0); while(l.length<n) l.push(0);
+    let l=lk[nu.id]; l = l ? l.slice(0,n) : a.map(c=>(c==='CT'||c==='DC')?1:0); while(l.length<n) l.push(0);
     return {id:nu.id,name:nu.name,cells:a,locked:l};
   });
 }
@@ -701,7 +704,7 @@ function renderHead(){
 }
 function chipHtml(k){
   const cfg=CFG(), t=cfg.time[k]||'', p=POINTS[k]||0;
-  const sub=[t, p?p+' poin':''].filter(Boolean).join(' · ');
+  const sub=[t, p+' poin'].filter(Boolean).join(' · ');
   return `<button class="chip" data-brush="${k}" aria-pressed="${S.brush===k}"><span class="code s-${k}">${k}</span><span class="lab"><b>${LABELS[k]}</b>${sub?`<small>${sub}</small>`:''}</span></button>`;
 }
 function renderBrush(){
@@ -751,7 +754,7 @@ function renderGrid(){
   });
   h+='</tfoot>';
   $('grid').innerHTML=h;
-  $('legend').innerHTML='<span>Poin per dinas:</span>'+cfg.codes.filter(k=>POINTS[k]).map(k=>`<span>${k} = <b>${POINTS[k]}</b></span>`).join('')+'<span>Libur = <b>0</b></span>';
+  $('legend').innerHTML='<span>Poin per dinas:</span>'+cfg.codes.filter(k=>POINTS[k]).map(k=>`<span>${k} = <b>${POINTS[k]}</b></span>`).join('')+'<span>Libur dan DC (sakit) = <b>0</b></span>';
 }
 function renderWarn(){
   const b=$('warnbadge'), body=$('warnbody');
@@ -821,7 +824,7 @@ function paint(id,d){
   lastChg=new Set();
   let changes=null;
   // Perawat sakit atau izin: sel kerja diubah ke Libur/CT, kekurangan ditutup seminimal mungkin
-  if(S.autoAdjust!==false && (nv==='L'||nv==='CT') && isWork(old)){
+  if(S.autoAdjust!==false && (nv==='L'||nv==='CT'||nv==='DC') && isWork(old)){
     changes=repair(rows,n,y,m,U().need,CFG(),d);
     changes.forEach(c=>lastChg.add(c.id+':'+c.d));
   }
@@ -842,7 +845,7 @@ function runAuto(mode,prefix){
   const {y,m}=S.view, n=daysIn(y,m), rows=rowsFor(y,m);
   if(!rows.length){ status('Tambahkan perawat dulu di bagian Perawat.'); return; }
   lastChg=new Set();
-  if(mode==='regen') rows.forEach(r=>{ r.cells=r.cells.map(c=>c==='CT'?'CT':''); r.locked=r.cells.map(c=>c==='CT'?1:0); });
+  if(mode==='regen') rows.forEach(r=>{ r.cells=r.cells.map(c=>(c==='CT'||c==='DC')?c:''); r.locked=r.cells.map(c=>(c==='CT'||c==='DC')?1:0); });
   if(mode==='keep') rows.forEach(r=>{ r.cells=r.cells.map((c,i)=>r.locked[i]?c:''); });
   if(mode==='clear'){ rows.forEach(r=>{ r.cells=r.cells.map(()=>''); r.locked=r.cells.map(()=>0); }); saveRows(y,m,rows); refresh(); status('Jadwal bulan ini dikosongkan.'); return; }
   autoFill(rows,n,y,m,U().need,CFG()); saveRows(y,m,rows); refresh();
